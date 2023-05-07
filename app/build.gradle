@@ -10,6 +10,7 @@ android {
     defaultConfig {
         applicationId "pl.argo.argomobile"
         minSdkVersion 24
+        //noinspection ExpiredTargetSdkVersion
         targetSdkVersion 30
         versionCode 1
         versionName "1.0"

@@ -27,7 +27,6 @@ import sensor_msgs.JointState;
  * A simple {@link Publisher} {@link NodeMain}.
  */
 
-@Data
 public class ParametrizedTalker extends AbstractNodeMain { // Java nodes NEEDS to implement AbstractNodeMain
 
     //Czas pomiędzy kolejnymi wywołaniami wysyłania wiadomości wyrażony w milisekundach
@@ -121,6 +120,8 @@ public class ParametrizedTalker extends AbstractNodeMain { // Java nodes NEEDS t
                 }
             }
         });
+
+
     }
 
     public void initializeManipsStates(int size) {

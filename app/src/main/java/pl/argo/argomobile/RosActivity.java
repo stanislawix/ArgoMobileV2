@@ -3,6 +3,7 @@ package pl.argo.argomobile;
 // The source code was copied from a decompiled .class file, then extension was changed
 
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.AsyncTask;
@@ -106,7 +107,7 @@ public abstract class RosActivity extends AppCompatActivity {//Activity
         intent.putExtra("org.ros.android.EXTRA_NOTIFICATION_TICKER", this.notificationTicker);
         intent.putExtra("org.ros.android.EXTRA_NOTIFICATION_TITLE", this.notificationTitle);
         this.startService(intent);
-        Preconditions.checkState(this.bindService(intent, this.nodeMainExecutorServiceConnection, 1), "Failed to bind NodeMainExecutorService.");
+        Preconditions.checkState(this.bindService(intent, this.nodeMainExecutorServiceConnection, Context.BIND_AUTO_CREATE), "Failed to bind NodeMainExecutorService.");
     }
 
     protected void onDestroy() {

@@ -2,14 +2,13 @@
 buildscript {
     apply from: "gradle_plugins_build_scripts/rosjava_kinetic_buildscript.gradle"
 
-    ext.kotlin_version = '1.7.20'
+    ext.kotlin_version = '1.8.10'
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:4.2.2'
-//        classpath 'org.projectlombok:lombok:1.18.20'
 
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.7.20"
 

@@ -9,7 +9,6 @@ android {
     defaultConfig {
         applicationId "pl.argo.argomobile"
         minSdkVersion 24
-        //noinspection ExpiredTargetSdkVersion
         targetSdkVersion 30
         versionCode 1
         versionName "1.0"
@@ -41,11 +40,11 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
     implementation "androidx.core:core-ktx:1.10.0"
 
-//    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.8.10"
 
     // Lombok
-    implementation 'org.projectlombok:lombok:1.18.20'
-    annotationProcessor 'org.projectlombok:lombok:1.18.20'
+//    implementation 'org.projectlombok:lombok:1.18.20'
+//    annotationProcessor 'org.projectlombok:lombok:1.18.20'
 
     // ROS
     // implementation 'org.ros.android.Masterchooser'
@@ -68,8 +67,8 @@ dependencies {
     implementation 'com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava'
 
 
-    /*Room dependencies - for use of databases*/
-    def room_version = "2.3.0"//instead of 2.4.2
+    // Room dependencies - for use of databases
+    def room_version = "2.3.0" //instead of 2.4.2
 
     implementation "androidx.room:room-runtime:$room_version"
     annotationProcessor "androidx.room:room-compiler:$room_version"

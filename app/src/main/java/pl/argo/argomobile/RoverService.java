@@ -7,7 +7,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import lombok.SneakyThrows;
 import pl.argo.argomobile.data.*;
 import pl.argo.argomobile.data.dto.RoverDto;
 import pl.argo.argomobile.data.dto.RoverMapper;
@@ -49,7 +48,7 @@ public class RoverService {
         List<RoverDto> roverDtos = new ArrayList<>();
 
         for (Rover rover : rovers) {
-            List<Joint> roverJoints = jointDao.getAllByRoverId(rover.getId());
+            List<Joint> roverJoints = jointDao.getAllByRoverId(rover.id);
 
             roverDtos.add(roverMapper.toDto(rover, roverJoints));
         }
@@ -63,12 +62,11 @@ public class RoverService {
     //@SneakyThrows
     public boolean updateRoversFromApi() {
 
-        //Allow internet connection on main thread not recommended, but easier and faster to implement
+        // Allow internet connection on main thread not recommended, but easier and faster to implement
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
 
         String sURL = "http://ec2-18-198-201-108.eu-central-1.compute.amazonaws.com:8080/api/rovers";//TODO: change when app maintainer will change
-
 
         JsonElement root;
         try {
@@ -90,7 +88,7 @@ public class RoverService {
 
         allJsonRovers.forEach(jsonRover -> {
             JsonObject jsonRoverObject = jsonRover.getAsJsonObject();
-            Rover rover = Rover.builder()
+            Rover rover = new Rover.Builder()
                     .id(jsonRoverObject.get("id").getAsInt())
                     .name(jsonRoverObject.get("name").getAsString())
                     .topicPrefix(jsonRoverObject.get("topicPrefix").getAsString())
@@ -99,10 +97,10 @@ public class RoverService {
             JsonArray jsonJoints = jsonRoverObject.getAsJsonArray("joints");
             jsonJoints.forEach(jsonJoint -> {
                 JsonObject jsonJointObject = jsonJoint.getAsJsonObject();
-                Joint joint = Joint.builder()
+                Joint joint = new Joint.Builder()
                         .id(jsonJointObject.get("id").getAsInt())
                         .jointName(jsonJointObject.get("jointName").getAsString())
-                        .roverId(rover.getId())
+                        .roverId(rover.id)
                         .build();
 
                 jointDao.insert(joint);

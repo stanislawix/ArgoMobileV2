@@ -11,14 +11,11 @@ import org.ros.node.NodeMain;
 import org.ros.node.topic.Publisher;  // Import the publisher
 
 import java.util.Calendar;
-import java.util.stream.Collectors;
 
 import geometry_msgs.Twist;
 //import sensor_msgs.JointState;
 
-import lombok.Data;
-import pl.argo.argomobile.data.Joint;
-import pl.argo.argomobile.data.Rover;
+//import lombok.Data;
 import pl.argo.argomobile.data.dto.RoverDto;
 import sensor_msgs.JointState;
 
@@ -29,30 +26,20 @@ import sensor_msgs.JointState;
 
 public class ParametrizedTalker extends AbstractNodeMain { // Java nodes NEEDS to implement AbstractNodeMain
 
-    //Czas pomiędzy kolejnymi wywołaniami wysyłania wiadomości wyrażony w milisekundach
-    private static int sleepTime = 100;
-
+    private static final int sleepTime = 100; // czas pomiędzy kolejnymi wywołaniami wysyłania wiadomości wyrażony w milisekundach
     int seq = 0;
-
     boolean isAngular = false;
 
-    Vector3Implemenation linear = new Vector3Implemenation();
-    Vector3Implemenation angular = new Vector3Implemenation();
-
+    Vector3Implementation linear = new Vector3Implementation();
+    Vector3Implementation angular = new Vector3Implementation();
     RoverDto rover;
-
     Publisher<geometry_msgs.Twist> twistPublisher;
     Publisher<sensor_msgs.JointState> jointStatePublisher;
 
+    private Twist twist; //http://docs.ros.org/en/melodic/api/geometry_msgs/html/msg/Twist.html
+    private JointState manips; //http://docs.ros.org/en/melodic/api/sensor_msgs/html/msg/JointState.html
 
-    //http://docs.ros.org/en/melodic/api/geometry_msgs/html/msg/Twist.html
-    private Twist twist;
-
-    //http://docs.ros.org/en/melodic/api/sensor_msgs/html/msg/JointState.html
-    private JointState manips;
-
-    //wartości effortu od -100 do 100
-    double[] manipsStates = new double[6];
+    double[] manipsStates = new double[6]; // wartości effortu od -100 do 100
 
     @Override
     public GraphName getDefaultNodeName() {
@@ -61,16 +48,13 @@ public class ParametrizedTalker extends AbstractNodeMain { // Java nodes NEEDS t
 
     @Override
     public void onStart(final ConnectedNode connectedNode) {
-        linear = new Vector3Implemenation();
-        angular = new Vector3Implemenation();
+        linear = new Vector3Implementation();
+        angular = new Vector3Implementation();
 
-        // This CancellableLoop will be canceled automatically when the node shuts
-        // down.
-        connectedNode.executeCancellableLoop(new CancellableLoop() {
+        connectedNode.executeCancellableLoop(new CancellableLoop() { // This CancellableLoop will be canceled automatically when the node shuts down
 
             @Override
-            protected void setup() {
-            }
+            protected void setup() { }
 
             @Override
             protected void loop() throws InterruptedException {
@@ -122,6 +106,18 @@ public class ParametrizedTalker extends AbstractNodeMain { // Java nodes NEEDS t
         });
 
 
+    }
+
+    public Vector3Implementation getLinear() {
+        return linear;
+    }
+
+    public Vector3Implementation getAngular() {
+        return angular;
+    }
+
+    public void setRover(RoverDto rover) {
+        this.rover = rover;
     }
 
     public void initializeManipsStates(int size) {

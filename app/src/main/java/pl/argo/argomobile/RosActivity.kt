@@ -1,211 +1,249 @@
-package pl.argo.argomobile;
+package pl.argo.argomobile
+
+import android.app.Activity
+import android.content.ComponentName
+import android.content.Intent
+import android.content.ServiceConnection
+import android.os.IBinder
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import com.google.common.base.Preconditions
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.async
+import org.ros.address.InetAddressFactory
+import org.ros.android.MasterChooser
+import org.ros.android.NodeMainExecutorService
+import org.ros.android.NodeMainExecutorService.LocalBinder
+import org.ros.android.NodeMainExecutorServiceListener
+import org.ros.exception.RosRuntimeException
+import org.ros.node.NodeMainExecutor
+import java.net.NetworkInterface
+import java.net.SocketException
+import java.net.URI
+import java.net.URISyntaxException
 
 // The source code was copied from a decompiled .class file, then extension was changed
+abstract class RosActivity protected constructor(
+    notificationTicker: String,
+    notificationTitle: String,
+    customMasterUri: URI? = null
+) : AppCompatActivity(), CoroutineScope by MainScope() {
+    private val nodeMainExecutorServiceConnection: NodeMainExecutorServiceConnection
+    private val notificationTicker: String
+    private val notificationTitle: String
+    private var masterChooserActivity: Class<*>
+    private var masterChooserRequestCode: Int
+    protected var nodeMainExecutorService: NodeMainExecutorService? = null
 
-import android.content.ComponentName;
-import android.content.Context;
-import android.content.Intent;
-import android.content.ServiceConnection;
-import android.os.AsyncTask;
-import android.os.IBinder;
-
-import androidx.appcompat.app.AppCompatActivity;
-
-import com.google.common.base.Preconditions;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import org.ros.address.InetAddressFactory;
-import org.ros.android.MasterChooser;
-import org.ros.android.NodeMainExecutorService;
-import org.ros.android.NodeMainExecutorService.LocalBinder;
-import org.ros.android.NodeMainExecutorServiceListener;
-import org.ros.exception.RosRuntimeException;
-import org.ros.node.NodeMainExecutor;
-
-public abstract class RosActivity extends AppCompatActivity {//Activity
-    protected static final int MASTER_CHOOSER_REQUEST_CODE = 0;
-    private final NodeMainExecutorServiceConnection nodeMainExecutorServiceConnection;
-    private final String notificationTicker;
-    private final String notificationTitle;
-    private Class<?> masterChooserActivity;
-    private int masterChooserRequestCode;
-    protected NodeMainExecutorService nodeMainExecutorService;
-    private RosActivity.OnActivityResultCallback onActivityResultCallback;
-
-    protected RosActivity(String notificationTicker, String notificationTitle) {
-        this(notificationTicker, notificationTitle, (URI)null);
+    init {
+        masterChooserActivity = MasterChooser::class.java
+        masterChooserRequestCode = 0
+        this.notificationTicker = notificationTicker
+        this.notificationTitle = notificationTitle
+        nodeMainExecutorServiceConnection = NodeMainExecutorServiceConnection(customMasterUri)
     }
 
-    protected RosActivity(String notificationTicker, String notificationTitle, URI customMasterUri) {
-        this.masterChooserActivity = MasterChooser.class;
-        this.masterChooserRequestCode = 0;
-        this.onActivityResultCallback = new RosActivity.OnActivityResultCallback() {
-            public void execute(int requestCode, int resultCode, Intent data) {
-                if (resultCode == -1) {
-                    if (requestCode == 0) {
-                        String networkInterfaceName = data.getStringExtra("ROS_MASTER_NETWORK_INTERFACE");
-                        String host;
-                        if (networkInterfaceName != null && !networkInterfaceName.equals("")) {
-                            try {
-                                NetworkInterface networkInterface = NetworkInterface.getByName(networkInterfaceName);
-                                host = InetAddressFactory.newNonLoopbackForNetworkInterface(networkInterface).getHostAddress();
-                            } catch (SocketException var9) {
-                                throw new RosRuntimeException(var9);
+    protected constructor(
+        notificationTicker: String,
+        notificationTitle: String,
+        activity: Class<*>,
+        requestCode: Int
+    ) : this(notificationTicker, notificationTitle) {
+        masterChooserActivity = activity
+        masterChooserRequestCode = requestCode
+    }
+
+    override fun onStart() {
+        super.onStart()
+        bindNodeMainExecutorService()
+    }
+
+    protected fun bindNodeMainExecutorService() {
+        val intent = Intent(this, NodeMainExecutorService::class.java)
+        intent.action = "org.ros.android.ACTION_START_NODE_RUNNER_SERVICE"
+        intent.putExtra("org.ros.android.EXTRA_NOTIFICATION_TICKER", notificationTicker)
+        intent.putExtra("org.ros.android.EXTRA_NOTIFICATION_TITLE", notificationTitle)
+        startService(intent)
+        Preconditions.checkState(
+            this.bindService(
+                intent,
+                nodeMainExecutorServiceConnection,
+                BIND_AUTO_CREATE
+            ), "Failed to bind NodeMainExecutorService."
+        )
+    }
+
+    override fun onDestroy() {
+        unbindService(nodeMainExecutorServiceConnection)
+        nodeMainExecutorService!!.removeListener(nodeMainExecutorServiceConnection.serviceListener)
+        super.onDestroy()
+    }
+
+    protected fun init() {
+        val asyncServiceInitialization = async {
+            this@RosActivity.init(nodeMainExecutorService)
+        }
+        asyncServiceInitialization.start()
+    }
+
+    protected abstract fun init(var1: NodeMainExecutor?)
+
+
+    fun startMasterChooser() {
+        Preconditions.checkState(masterUri == null)
+
+        val startForResult =
+            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
+                if (result.resultCode == Activity.RESULT_OK) {
+                    val intentData = result.data
+
+                    if (intentData != null) {
+
+                        val networkInterfaceName: String? =
+                            intentData.getStringExtra("ROS_MASTER_NETWORK_INTERFACE")
+
+                        val host: String =
+                            if (!networkInterfaceName.isNullOrBlank()) {
+                                try {
+                                    val networkInterface =
+                                        NetworkInterface.getByName(networkInterfaceName)
+                                    InetAddressFactory.newNonLoopbackForNetworkInterface(
+                                        networkInterface
+                                    ).hostAddress
+                                } catch (socketException: SocketException) {
+                                    throw RosRuntimeException(socketException)
+                                }
+                            } else {
+                                defaultHostAddress
                             }
+
+                        nodeMainExecutorService?.rosHostname = host
+
+                        if (intentData.getBooleanExtra("ROS_MASTER_CREATE_NEW", false)) {
+                            nodeMainExecutorService!!.startMaster(
+                                intentData.getBooleanExtra(
+                                    "ROS_MASTER_PRIVATE",
+                                    true
+                                )
+                            )
                         } else {
-                            host = RosActivity.this.getDefaultHostAddress();
+                            val uri: URI
+                            uri = try {
+                                URI(intentData.getStringExtra("ROS_MASTER_URI"))
+                            } catch (uriSyntaxException: URISyntaxException) {
+                                throw RosRuntimeException(uriSyntaxException)
+                            }
+                            nodeMainExecutorService!!.masterUri = uri
                         }
 
-                        RosActivity.this.nodeMainExecutorService.setRosHostname(host);
-                        if (data.getBooleanExtra("ROS_MASTER_CREATE_NEW", false)) {
-                            RosActivity.this.nodeMainExecutorService.startMaster(data.getBooleanExtra("ROS_MASTER_PRIVATE", true));
-                        } else {
-                            URI uri;
-                            try {
-                                uri = new URI(data.getStringExtra("ROS_MASTER_URI"));
-                            } catch (URISyntaxException var8) {
-                                throw new RosRuntimeException(var8);
-                            }
-
-                            RosActivity.this.nodeMainExecutorService.setMasterUri(uri);
+                        val asyncJob = async {
+                            this@RosActivity.init(nodeMainExecutorService)
                         }
-
-                        (new AsyncTask<Void, Void, Void>() {
-                            protected Void doInBackground(Void... params) {
-                                RosActivity.this.init(RosActivity.this.nodeMainExecutorService);
-                                return null;
-                            }
-                        }).execute(new Void[0]);
+                        asyncJob.start()
                     } else {
-                        RosActivity.this.nodeMainExecutorService.forceShutdown();
-                    }
-                }
-
-            }
-        };
-        this.notificationTicker = notificationTicker;
-        this.notificationTitle = notificationTitle;
-        this.nodeMainExecutorServiceConnection = new RosActivity.NodeMainExecutorServiceConnection(customMasterUri);
-    }
-
-    protected RosActivity(String notificationTicker, String notificationTitle, Class<?> activity, int requestCode) {
-        this(notificationTicker, notificationTitle);
-        this.masterChooserActivity = activity;
-        this.masterChooserRequestCode = requestCode;
-    }
-
-    protected void onStart() {
-        super.onStart();
-        this.bindNodeMainExecutorService();
-    }
-
-    protected void bindNodeMainExecutorService() {
-        Intent intent = new Intent(this, NodeMainExecutorService.class);
-        intent.setAction("org.ros.android.ACTION_START_NODE_RUNNER_SERVICE");
-        intent.putExtra("org.ros.android.EXTRA_NOTIFICATION_TICKER", this.notificationTicker);
-        intent.putExtra("org.ros.android.EXTRA_NOTIFICATION_TITLE", this.notificationTitle);
-        this.startService(intent);
-        Preconditions.checkState(this.bindService(intent, this.nodeMainExecutorServiceConnection, Context.BIND_AUTO_CREATE), "Failed to bind NodeMainExecutorService.");
-    }
-
-    protected void onDestroy() {
-        this.unbindService(this.nodeMainExecutorServiceConnection);
-        this.nodeMainExecutorService.removeListener(this.nodeMainExecutorServiceConnection.getServiceListener());
-        super.onDestroy();
-    }
-
-    protected void init() {
-        (new AsyncTask<Void, Void, Void>() {
-            protected Void doInBackground(Void... params) {
-                RosActivity.this.init(RosActivity.this.nodeMainExecutorService);
-                return null;
-            }
-        }).execute(new Void[0]);
-    }
-
-    protected abstract void init(NodeMainExecutor var1);
-
-    public void startMasterChooser() {
-        Preconditions.checkState(this.getMasterUri() == null);
-        super.startActivityForResult(new Intent(this, this.masterChooserActivity), this.masterChooserRequestCode);
-    }
-
-    public URI getMasterUri() {
-        Preconditions.checkNotNull(this.nodeMainExecutorService);
-        return this.nodeMainExecutorService.getMasterUri();
-    }
-
-    public String getRosHostname() {
-        Preconditions.checkNotNull(this.nodeMainExecutorService);
-        return this.nodeMainExecutorService.getRosHostname();
-    }
-
-    public void startActivityForResult(Intent intent, int requestCode) {
-        Preconditions.checkArgument(requestCode != this.masterChooserRequestCode);
-        super.startActivityForResult(intent, requestCode);
-    }
-
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (this.onActivityResultCallback != null) {
-            this.onActivityResultCallback.execute(requestCode, resultCode, data);
-        }
-
-    }
-
-    private String getDefaultHostAddress() {
-        return InetAddressFactory.newNonLoopback().getHostAddress();
-    }
-
-    public void setOnActivityResultCallback(RosActivity.OnActivityResultCallback callback) {
-        this.onActivityResultCallback = callback;
-    }
-
-    public interface OnActivityResultCallback {
-        void execute(int var1, int var2, Intent var3);
-    }
-
-    private final class NodeMainExecutorServiceConnection implements ServiceConnection {
-        private NodeMainExecutorServiceListener serviceListener;
-        private URI customMasterUri;
-
-        public NodeMainExecutorServiceConnection(URI customUri) {
-            this.customMasterUri = customUri;
-        }
-
-        public void onServiceConnected(ComponentName name, IBinder binder) {
-            RosActivity.this.nodeMainExecutorService = ((LocalBinder)binder).getService();
-            if (this.customMasterUri != null) {
-                RosActivity.this.nodeMainExecutorService.setMasterUri(this.customMasterUri);
-                RosActivity.this.nodeMainExecutorService.setRosHostname(RosActivity.this.getDefaultHostAddress());
-            }
-
-            this.serviceListener = new NodeMainExecutorServiceListener() {
-                public void onShutdown(NodeMainExecutorService nodeMainExecutorService) {
-                    if (!RosActivity.this.isFinishing()) {
-                        RosActivity.this.finish();
+                        nodeMainExecutorService?.rosHostname = defaultHostAddress
+//                        nodeMainExecutorService!!.startMaster(true) // niby ros_master_create_new domyslnie jest false to idk czy startowac mastera tu
                     }
 
+                } else {
+                    nodeMainExecutorService!!.forceShutdown()
                 }
-            };
-            RosActivity.this.nodeMainExecutorService.addListener(this.serviceListener);
-            if (RosActivity.this.getMasterUri() == null) {
-                RosActivity.this.startMasterChooser();
+            }
+
+        startForResult.launch(
+            Intent(
+                this, MasterChooser::class.java
+            )
+        )
+    }
+
+//    fun startMasterChooser() {
+//        Preconditions.checkState(masterUri == null)
+//
+//        val getContent = registerForActivityResult(PickRosMaster) { uri: Uri? ->
+//            // Handle the returned Uri
+//        }
+//
+//        getContent.launch(masterChooserRequestCode)
+////        super.startActivityForResult(Intent(this, masterChooserActivity), masterChooserRequestCode)
+//    }
+
+//    class PickRosMaster : ActivityResultContract<Int, Uri?>() {
+//        override fun createIntent(context: Context, masterChooserRequestCode: Int) =
+//            Intent(context, MasterChooser::class.java).apply {
+//                putExtra("requestCode", masterChooserRequestCode)
+//            }
+//
+//        override fun parseResult(resultCode: Int, result: Intent?) : Uri? {
+//            if (resultCode != Activity.RESULT_OK) {
+//                return null
+//            }
+//            return result?.getParcelableExtra("android.intent.extra.ringtone.PICKED_URI")
+//        }
+//    }
+
+    val masterUri: URI?
+        get() {
+//            Preconditions.checkNotNull(nodeMainExecutorService)
+            return nodeMainExecutorService!!.masterUri
+        }
+
+    val rosHostname: String
+        get() {
+//            Preconditions.checkNotNull(nodeMainExecutorService)
+            return nodeMainExecutorService!!.rosHostname
+        }
+
+//    @Deprecated("Deprecated in Java")
+//    override fun startActivityForResult(intent: Intent, requestCode: Int) {
+//        Preconditions.checkArgument(requestCode != masterChooserRequestCode)
+//        super.startActivityForResult(intent, requestCode)
+//    }
+
+//    @Deprecated("Deprecated in Java")
+//    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+//        super.onActivityResult(requestCode, resultCode, data)
+//        if (onActivityResultCallback != null) {
+//            onActivityResultCallback!!.execute(requestCode, resultCode, data)
+//        }
+//    }
+
+    private val defaultHostAddress: String
+        get() = InetAddressFactory.newNonLoopback().hostAddress
+
+    private inner class NodeMainExecutorServiceConnection(private val customMasterUri: URI?) :
+        ServiceConnection {
+        var serviceListener: NodeMainExecutorServiceListener? = null
+            private set
+
+        override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+            nodeMainExecutorService = (binder as LocalBinder).service
+            if (customMasterUri != null) {
+                nodeMainExecutorService!!.masterUri = customMasterUri
+                nodeMainExecutorService!!.rosHostname = defaultHostAddress
+            }
+            serviceListener = NodeMainExecutorServiceListener {
+                if (!this@RosActivity.isFinishing) {
+                    finish()
+                }
+            }
+            nodeMainExecutorService!!.addListener(serviceListener)
+            if (masterUri == null) {
+                startMasterChooser()
             } else {
-                RosActivity.this.init();
+                this@RosActivity.init()
             }
-
         }
 
-        public void onServiceDisconnected(ComponentName name) {
-            RosActivity.this.nodeMainExecutorService.removeListener(this.serviceListener);
-            this.serviceListener = null;
+        override fun onServiceDisconnected(name: ComponentName) {
+            nodeMainExecutorService!!.removeListener(serviceListener)
+            serviceListener = null
         }
+    }
 
-        public NodeMainExecutorServiceListener getServiceListener() {
-            return this.serviceListener;
-        }
+    companion object {
+        protected const val MASTER_CHOOSER_REQUEST_CODE = 0
     }
 }

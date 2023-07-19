@@ -30,7 +30,7 @@ import java.lang.reflect.Field;
 import io.github.controlwear.virtual.joystick.android.JoystickView;
 import pl.argo.argomobile.data.dto.RoverDto;
 
-public class MainActivity extends RosActivity {//AppCompatActivity
+public class MainActivity extends RosActivity { // AppCompatActivity -?
 
     public static final String TAG = "ArgoMobile";
 
@@ -44,7 +44,7 @@ public class MainActivity extends RosActivity {//AppCompatActivity
     private double x, y, z;
 
     public MainActivity() {
-        super("ArgoMobile", "ArgoMobile");
+        super("ArgoMobile", "ArgoMobile", null);
     }
 
     @Override

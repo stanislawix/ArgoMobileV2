@@ -66,7 +66,7 @@ public class RoverService {
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
 
-        String sURL = "http://ec2-18-198-201-108.eu-central-1.compute.amazonaws.com:8080/api/rovers"; // TODO: change when app maintainer will change
+        String sURL = "http://192.168.1.2:2115/api/rovers"; // TODO: change when app maintainer will change
 
         JsonElement root;
         try {

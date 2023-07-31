@@ -1,30 +1,22 @@
 package pl.argo.argomobile.data
 
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-import org.ros.Topics
-
-@Entity
 data class Rover(
-    @JvmField
-    @PrimaryKey val id: Int, @JvmField
-    @ColumnInfo(name = "name") val name: String?, @JvmField
-    @ColumnInfo(name = "topic_prefix") val topicPrefix: String?
+    val id: Int,
+    val name: String?,
+    val topicPrefix: String?,
+    val jointNames: List<String>
 ) {
 
     class Builder {
         private var id = 0
         private var name: String? = null
         private var topicPrefix: String? = null
+        private var jointNames: List<String> = emptyList()
 
-        fun id(id: Int): Builder {
-            this.id = id
-            return this
-        }
-
+        fun id(id: Int) = apply { this.id = id }
         fun name(name: String) = apply { this.name = name }
         fun topicPrefix(topicPrefix: String) = apply { this.topicPrefix = topicPrefix }
-        fun build() = Rover(id, name, topicPrefix)
+        fun jointNames(jointNames: List<String>) = apply { this.jointNames = jointNames }
+        fun build() = Rover(id, name, topicPrefix, jointNames)
     }
 }

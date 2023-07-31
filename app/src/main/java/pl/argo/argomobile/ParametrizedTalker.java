@@ -16,7 +16,7 @@ import geometry_msgs.Twist;
 //import sensor_msgs.JointState;
 
 //import lombok.Data;
-import pl.argo.argomobile.data.dto.RoverDto;
+import pl.argo.argomobile.data.Rover;
 import sensor_msgs.JointState;
 
 
@@ -32,14 +32,13 @@ public class ParametrizedTalker extends AbstractNodeMain { // Java nodes NEEDS t
 
     Vector3Implementation linear = new Vector3Implementation();
     Vector3Implementation angular = new Vector3Implementation();
-    RoverDto rover;
     Publisher<geometry_msgs.Twist> twistPublisher;
     Publisher<sensor_msgs.JointState> jointStatePublisher;
+    Rover rover;
 
-    private Twist twist; //http://docs.ros.org/en/melodic/api/geometry_msgs/html/msg/Twist.html
-    private JointState manips; //http://docs.ros.org/en/melodic/api/sensor_msgs/html/msg/JointState.html
-
-    double[] manipsStates = new double[6]; // wartości effortu od -100 do 100
+    private Twist twist; // http://docs.ros.org/en/melodic/api/geometry_msgs/html/msg/Twist.html
+    private JointState joints; // http://docs.ros.org/en/melodic/api/sensor_msgs/html/msg/JointState.html
+    double[] jointsEfforts = new double[6]; // wartości effortu od -100 do 100
 
     @Override
     public GraphName getDefaultNodeName() {
@@ -80,17 +79,18 @@ public class ParametrizedTalker extends AbstractNodeMain { // Java nodes NEEDS t
 
                     twistPublisher.publish(twist);
 
-                    if(rover.getJointNames() != null) {
-                        manips = jointStatePublisher.newMessage();
+//                    if(rover.getJointNames() != null) {
+                    if(!rover.getJointNames().isEmpty()) {
+                        joints = jointStatePublisher.newMessage();
 
-                        manips.getHeader().setSeq(++seq);
-                        manips.getHeader().setStamp(Time.fromMillis(System.currentTimeMillis()));//dodawanie dodatkowo frame_id jest niepotrzebne
+                        joints.getHeader().setSeq(++seq);
+                        joints.getHeader().setStamp(Time.fromMillis(System.currentTimeMillis()));//dodawanie dodatkowo frame_id jest niepotrzebne
 
-                        manips.setName(rover.getJointNames());
+                        joints.setName(rover.getJointNames());
                         //manips.setPosition(manipsStates);
                         //manips.setVelocity(manipsStates);
-                        manips.setEffort(manipsStates);
-                        jointStatePublisher.publish(manips);
+                        joints.setEffort(jointsEfforts);
+                        jointStatePublisher.publish(joints);
                     }
 
                     long elapsedTime = Calendar.getInstance().getTimeInMillis() - startTime;
@@ -105,7 +105,6 @@ public class ParametrizedTalker extends AbstractNodeMain { // Java nodes NEEDS t
             }
         });
 
-
     }
 
     public Vector3Implementation getLinear() {
@@ -116,12 +115,12 @@ public class ParametrizedTalker extends AbstractNodeMain { // Java nodes NEEDS t
         return angular;
     }
 
-    public void setRover(RoverDto rover) {
+    public void setRover(Rover rover) {
         this.rover = rover;
     }
 
-    public void initializeManipsStates(int size) {
-        manipsStates = new double[size];
+    public void initializeJointsEfforts(int size) {
+        jointsEfforts = new double[size];
     }
 
 }

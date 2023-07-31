@@ -20,9 +20,6 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".RoverChooserActivity"
-            android:exported="false" />
-        <activity
             android:name="org.ros.android.MasterChooser"
             android:exported="false" />
 

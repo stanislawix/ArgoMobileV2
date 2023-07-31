@@ -1,7 +1,6 @@
 package pl.argo.argomobile;
 
 import android.annotation.SuppressLint;
-import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
@@ -14,31 +13,25 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.result.ActivityResult;
-import androidx.activity.result.ActivityResultCallback;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 
-import org.ros.android.view.RosTextView;
 import org.ros.android.MessageCallable;
+import org.ros.android.view.RosTextView;
 import org.ros.node.NodeConfiguration;
 import org.ros.node.NodeMainExecutor;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 import io.github.controlwear.virtual.joystick.android.JoystickView;
-import pl.argo.argomobile.data.dto.RoverDto;
+import pl.argo.argomobile.data.Rover;
 
 public class MainActivity extends RosActivity { // AppCompatActivity -?
 
     public static final String TAG = "ArgoMobile";
-
     private ParametrizedTalker talker;
     private RosTextView<std_msgs.String> rosTextView;
-
-    private RoverService roverService;
-    private int chosenRoverId;
 
     private double scale = 0.5;
     private double x, y, z;
@@ -54,27 +47,25 @@ public class MainActivity extends RosActivity { // AppCompatActivity -?
         return true;
     }
 
-    ActivityResultLauncher<Intent> activityResultLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            new ActivityResultCallback<ActivityResult>() {
-                @Override
-                public void onActivityResult(ActivityResult result) {
-                    if (result.getResultCode() == 1) {
-                        Intent intent = result.getData();
-                        chosenRoverId = intent.getIntExtra("roverId", -1);
-                        updateActivityContentAndRoverObject();
-                    }
-                }
-            }
-    );
+//    ActivityResultLauncher<Intent> activityResultLauncher = registerForActivityResult(
+//            new ActivityResultContracts.StartActivityForResult(),
+//            new ActivityResultCallback<ActivityResult>() {
+//                @Override
+//                public void onActivityResult(ActivityResult result) {
+//                    if (result.getResultCode() == 1) {
+//                        Intent intent = result.getData();
+//                        chosenRoverId = intent.getIntExtra("roverId", -1);
+//                        updateActivityContentAndRoverObject();
+//                    }
+//                }
+//            }
+//    );
 
     @SuppressLint("DefaultLocale")
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        roverService = RoverService.getInstance(getApplicationContext());
 
         rosTextView = findViewById(R.id.rosTextView);
         rosTextView.setTopicName(null);
@@ -85,6 +76,8 @@ public class MainActivity extends RosActivity { // AppCompatActivity -?
                 return message.getData();
             }
         });
+
+        updateActivityContentAndRoverObject();
 
         JoystickView cmdVelJoystick = findViewById(R.id.cmd_vel_joystick);
 
@@ -115,7 +108,7 @@ public class MainActivity extends RosActivity { // AppCompatActivity -?
                 @Override
                 public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                     try {
-                        talker.manipsStates[iCopy] = seekBar.getProgress() - 100;
+                        talker.jointsEfforts[iCopy] = seekBar.getProgress() - 100;
                     } catch (NullPointerException e) {
                         Toast.makeText(MainActivity.this, R.string.unable_to_communicate_with_ros_server, Toast.LENGTH_SHORT).show();
                     }
@@ -143,15 +136,15 @@ public class MainActivity extends RosActivity { // AppCompatActivity -?
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if (item.getItemId() == R.id.settingsButton) {
-            Intent intent = new Intent(this, RoverChooserActivity.class);
-            activityResultLauncher.launch(intent);
+//            Intent intent = new Intent(this, RoverChooserActivity.class);
+//            activityResultLauncher.launch(intent);
+            Toast.makeText(this, "No i czego ty oczekujesz kurwa", Toast.LENGTH_SHORT).show();
             return true;
         }
         return super.onOptionsItemSelected(item);
     }
 
     public static int getResId(String resName, Class<?> c) {
-
         try {
             Field idField = c.getDeclaredField(resName);
             return idField.getInt(idField);
@@ -164,16 +157,23 @@ public class MainActivity extends RosActivity { // AppCompatActivity -?
     /**
      * Metoda aktualizująca aktualne activity oraz obiekt samego łazika — w zależności od wybranego łazika (różne joysticki dla różnych łazików)
      */
-    @SuppressLint("SetTextI18n")
     private void updateActivityContentAndRoverObject() {
-        RoverDto rover = roverService.getRoverById(chosenRoverId);
+        Rover rover = new Rover(1, "Dzik", "argo_mini", new ArrayList<>(Arrays.asList(
+                "front_left_wheel_joint",
+                "front_right_wheel_joint",
+                "middle_left_wheel_joint",
+                "middle_right_wheel_joint",
+                "rear_left_wheel_joint",
+                "rear_right_wheel_joint"
+        )));
+
         TextView roverName = findViewById(R.id.roverName);
 
         roverName.setText(getString(R.string.current_rover) + rover.getName());
 
         if (talker != null) {
-            if (rover.getJointNames() != null) talker.initializeManipsStates(rover.getJointNames().size());
-            else talker.initializeManipsStates(0);
+            if (rover.getJointNames() != null) talker.initializeJointsEfforts(rover.getJointNames().size());
+            else talker.initializeJointsEfforts(0);
             talker.setRover(rover);
         }
 
@@ -199,8 +199,7 @@ public class MainActivity extends RosActivity { // AppCompatActivity -?
         // At this point, the user has already been prompted to either enter the URI
         // of a master to use or to start a master locally.
 
-        // The user can easily use the selected ROS Hostname in the master chooser
-        // activity.
+        // The user can easily use the selected ROS Hostname in the master chooser activity.
         NodeConfiguration nodeConfiguration = NodeConfiguration.newPublic(getRosHostname());
         nodeConfiguration.setMasterUri(getMasterUri());
         nodeMainExecutor.execute(talker, nodeConfiguration);
@@ -232,11 +231,11 @@ public class MainActivity extends RosActivity { // AppCompatActivity -?
                 break;
             case R.id.radio_3:
                 if (checked)
-                    scale = 3;
+                    scale = 2;
                 break;
             case R.id.radio_6:
                 if (checked)
-                    scale = 6;
+                    scale = 4;
                 break;
         }
         Log.d("scale = ", String.valueOf(scale));

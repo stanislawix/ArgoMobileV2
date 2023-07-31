@@ -37,6 +37,11 @@ abstract class RosActivity protected constructor(
     private var masterChooserRequestCode: Int
     protected var nodeMainExecutorService: NodeMainExecutorService? = null
 
+    private var rosMasterUri: String? = null
+    private var networkInterfaceName: String? = null
+    private var isRosMasterCreateNew: Boolean = false
+    private var isRosMasterPrivate: Boolean = false
+
     init {
         masterChooserActivity = MasterChooser::class.java
         masterChooserRequestCode = 0
@@ -57,6 +62,7 @@ abstract class RosActivity protected constructor(
 
     override fun onStart() {
         super.onStart()
+        startMasterChooser()
         bindNodeMainExecutorService()
     }
 
@@ -90,9 +96,14 @@ abstract class RosActivity protected constructor(
 
     protected abstract fun init(var1: NodeMainExecutor?)
 
-
+    fun startRosService() {
+        val asyncJob = async {
+            this@RosActivity.init(nodeMainExecutorService)
+        }
+        asyncJob.start()
+    }
     fun startMasterChooser() {
-        Preconditions.checkState(masterUri == null)
+//        Preconditions.checkState(masterUri == null)
 
         val startForResult =
             registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
@@ -100,9 +111,12 @@ abstract class RosActivity protected constructor(
                     val intentData = result.data
 
                     if (intentData != null) {
-
-                        val networkInterfaceName: String? =
+                        networkInterfaceName =
                             intentData.getStringExtra("ROS_MASTER_NETWORK_INTERFACE")
+                        isRosMasterCreateNew =
+                            intentData.getBooleanExtra("ROS_MASTER_CREATE_NEW", false)
+                        isRosMasterPrivate = intentData.getBooleanExtra("ROS_MASTER_PRIVATE", true)
+                        rosMasterUri = intentData.getStringExtra("ROS_MASTER_URI")
 
                         val host: String =
                             if (!networkInterfaceName.isNullOrBlank()) {
@@ -121,27 +135,18 @@ abstract class RosActivity protected constructor(
 
                         nodeMainExecutorService?.rosHostname = host
 
-                        if (intentData.getBooleanExtra("ROS_MASTER_CREATE_NEW", false)) {
-                            nodeMainExecutorService!!.startMaster(
-                                intentData.getBooleanExtra(
-                                    "ROS_MASTER_PRIVATE",
-                                    true
-                                )
-                            )
+                        if (isRosMasterCreateNew) {
+                            nodeMainExecutorService!!.startMaster(isRosMasterPrivate)
                         } else {
                             val uri: URI
                             uri = try {
-                                URI(intentData.getStringExtra("ROS_MASTER_URI"))
+                                URI(rosMasterUri)
                             } catch (uriSyntaxException: URISyntaxException) {
                                 throw RosRuntimeException(uriSyntaxException)
                             }
                             nodeMainExecutorService!!.masterUri = uri
                         }
 
-                        val asyncJob = async {
-                            this@RosActivity.init(nodeMainExecutorService)
-                        }
-                        asyncJob.start()
                     } else {
                         nodeMainExecutorService?.rosHostname = defaultHostAddress
 //                        nodeMainExecutorService!!.startMaster(true) // niby ros_master_create_new domyslnie jest false to idk czy startowac mastera tu
@@ -231,7 +236,8 @@ abstract class RosActivity protected constructor(
             }
             nodeMainExecutorService!!.addListener(serviceListener)
             if (masterUri == null) {
-                startMasterChooser()
+                startRosService()
+//                startMasterChooser()
             } else {
                 this@RosActivity.init()
             }
